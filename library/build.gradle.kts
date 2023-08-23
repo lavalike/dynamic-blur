@@ -1,6 +1,7 @@
 plugins {
     id("com.android.library")
     id("org.jetbrains.kotlin.android")
+    id("maven-publish")
 }
 
 android {
@@ -18,8 +19,7 @@ android {
         release {
             isMinifyEnabled = false
             proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
+                getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
             )
         }
     }
@@ -34,4 +34,24 @@ android {
 
 dependencies {
 
+}
+
+sourceSets {
+    create("main") {
+        java.srcDir("src/main/java")
+    }
+}
+
+val androidSourceJar by tasks.registering(Jar::class) {
+    from(sourceSets["main"].allSource)
+    archiveClassifier.set("sources")
+}
+
+afterEvaluate {
+    publishing.publications {
+        create<MavenPublication>("release") {
+            artifact(androidSourceJar)
+            artifact(tasks.getByName("bundleReleaseAar"))
+        }
+    }
 }
