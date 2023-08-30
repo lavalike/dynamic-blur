@@ -47,6 +47,10 @@ val androidSourceJar by tasks.registering(Jar::class) {
     archiveClassifier.set("sources")
 }
 
+tasks.withType(Copy::class) {
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
+}
+
 afterEvaluate {
     publishing.publications {
         create<MavenPublication>("release") {
