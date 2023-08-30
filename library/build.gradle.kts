@@ -43,12 +43,9 @@ sourceSets {
 }
 
 val androidSourceJar by tasks.registering(Jar::class) {
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
     from(sourceSets["main"].allSource)
     archiveClassifier.set("sources")
-}
-
-tasks.withType(Copy::class) {
-    duplicatesStrategy = DuplicatesStrategy.INCLUDE
 }
 
 afterEvaluate {
