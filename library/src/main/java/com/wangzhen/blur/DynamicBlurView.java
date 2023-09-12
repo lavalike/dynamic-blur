@@ -5,10 +5,13 @@ import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.res.TypedArray;
 import android.graphics.Bitmap;
+import android.graphics.BitmapShader;
 import android.graphics.Canvas;
+import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.RectF;
+import android.graphics.Shader;
 import android.util.AttributeSet;
 import android.util.TypedValue;
 import android.view.View;
@@ -26,6 +29,8 @@ import com.wangzhen.blur.impl.EmptyBlurImpl;
  */
 public class DynamicBlurView extends View {
 
+    private static final int MAX_BLUR_RADIUS = 25;
+
     private float mDownSampleFactor; // default 4
     private int mOverlayColor; // default #aaffffff
     private float mBlurRadius; // default 10dp (0 < r <= 25)
@@ -36,7 +41,7 @@ public class DynamicBlurView extends View {
     private Bitmap mBitmapToBlur, mBlurredBitmap;
     private Canvas mBlurringCanvas;
     private boolean mIsRendering;
-    private Paint mPaint;
+    private final Paint mPaint, mBitmapPaint;
     private final Rect mRectSrc = new Rect();
     private final RectF mRectDst = new RectF();
     // mDecorView should be the root view of the activity (even if you are on a different window like a dialog)
@@ -60,6 +65,10 @@ public class DynamicBlurView extends View {
         a.recycle();
 
         mPaint = new Paint();
+        mPaint.setColor(mOverlayColor);
+
+        mBitmapPaint = new Paint();
+        mBitmapPaint.setAntiAlias(true);
     }
 
     protected Blur getBlurImpl() {
@@ -104,6 +113,7 @@ public class DynamicBlurView extends View {
     public void setOverlayColor(int color) {
         if (mOverlayColor != color) {
             mOverlayColor = color;
+            mPaint.setColor(mOverlayColor);
             invalidate();
         }
     }
@@ -132,9 +142,9 @@ public class DynamicBlurView extends View {
 
         float downsampleFactor = mDownSampleFactor;
         float radius = mBlurRadius / downsampleFactor;
-        if (radius > 25) {
-            downsampleFactor = downsampleFactor * radius / 25;
-            radius = 25;
+        if (radius > MAX_BLUR_RADIUS) {
+            downsampleFactor = downsampleFactor * radius / MAX_BLUR_RADIUS;
+            radius = MAX_BLUR_RADIUS;
         }
 
         final int width = getWidth();
@@ -218,7 +228,7 @@ public class DynamicBlurView extends View {
                         decor.getBackground().draw(mBlurringCanvas);
                     }
                     decor.draw(mBlurringCanvas);
-                } catch (StopException e) {
+                } catch (StopException ignored) {
                 } finally {
                     mIsRendering = false;
                     RENDERING_COUNT--;
@@ -287,7 +297,7 @@ public class DynamicBlurView extends View {
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
-        drawBlurredBitmap(canvas, mBlurredBitmap, mOverlayColor);
+        drawBlurredBitmap(canvas, mBlurredBitmap);
     }
 
     /**
@@ -295,17 +305,22 @@ public class DynamicBlurView extends View {
      *
      * @param canvas        {@link Canvas}
      * @param blurredBitmap {@link Bitmap}
-     * @param overlayColor  color
      */
-    protected void drawBlurredBitmap(Canvas canvas, Bitmap blurredBitmap, int overlayColor) {
+    protected void drawBlurredBitmap(Canvas canvas, Bitmap blurredBitmap) {
         if (blurredBitmap != null) {
             mRectSrc.right = blurredBitmap.getWidth();
             mRectSrc.bottom = blurredBitmap.getHeight();
             mRectDst.right = getWidth();
             mRectDst.bottom = getHeight();
-            canvas.drawBitmap(blurredBitmap, mRectSrc, mRectDst, null);
+
+            BitmapShader shader = new BitmapShader(blurredBitmap, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
+            Matrix matrix = new Matrix();
+            matrix.setScale(mRectDst.width() / blurredBitmap.getWidth(), mRectDst.height() / blurredBitmap.getHeight());
+            shader.setLocalMatrix(matrix);
+            mBitmapPaint.setShader(shader);
+
+            canvas.drawRoundRect(mRectDst, mBorderRadius, mBorderRadius, mBitmapPaint);
         }
-        mPaint.setColor(overlayColor);
         canvas.drawRoundRect(mRectDst, mBorderRadius, mBorderRadius, mPaint);
     }
 

@@ -13,8 +13,8 @@
 
     <ImageView
         android:id="@+id/icon"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+        android:layout_width="240dp"
+        android:layout_height="240dp"
         android:layout_gravity="center"
         android:contentDescription="@string/app_name"
         android:src="@mipmap/ic_launcher" />
