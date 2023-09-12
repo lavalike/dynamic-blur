@@ -19,10 +19,12 @@
         android:contentDescription="@string/app_name"
         android:src="@mipmap/ic_launcher" />
 
-    <com.wangzhen.blur.RealtimeBlurView
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
+    <com.wangzhen.blur.DynamicBlurView
+        android:layout_width="200dp"
+        android:layout_height="200dp"
+        android:layout_gravity="center"
         app:blurRadius="20dp"
+        app:borderRadius="30dp"
         app:overlayColor="#80ffffff" />
 
 </FrameLayout>

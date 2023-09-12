@@ -8,6 +8,7 @@ import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Rect;
+import android.graphics.RectF;
 import android.util.AttributeSet;
 import android.util.TypedValue;
 import android.view.View;
@@ -19,20 +20,16 @@ import com.wangzhen.blur.impl.EmptyBlurImpl;
 /**
  * A realtime blurring overlay (like iOS UIVisualEffectView). Just put it above
  * the view you want to blur and it doesn't have to be in the same ViewGroup
- * <ul>
- * <li>realtimeBlurRadius (10dp)</li>
- * <li>realtimeDownsampleFactor (4)</li>
- * <li>realtimeOverlayColor (#aaffffff)</li>
- * </ul>
  *
  * @author : zhen51.wang
  * @date : 2023/8/21/021
  */
-public class RealtimeBlurView extends View {
+public class DynamicBlurView extends View {
 
     private float mDownSampleFactor; // default 4
     private int mOverlayColor; // default #aaffffff
     private float mBlurRadius; // default 10dp (0 < r <= 25)
+    private float mBorderRadius; // default 0
 
     private final Blur mBlurImpl;
     private boolean mDirty;
@@ -40,7 +37,8 @@ public class RealtimeBlurView extends View {
     private Canvas mBlurringCanvas;
     private boolean mIsRendering;
     private Paint mPaint;
-    private final Rect mRectSrc = new Rect(), mRectDst = new Rect();
+    private final Rect mRectSrc = new Rect();
+    private final RectF mRectDst = new RectF();
     // mDecorView should be the root view of the activity (even if you are on a different window like a dialog)
     private View mDecorView;
     // If the view is on different root view (usually means we are on a PopupWindow),
@@ -49,16 +47,16 @@ public class RealtimeBlurView extends View {
     private static int RENDERING_COUNT;
     private static boolean findBlurImpl = false;
 
-    public RealtimeBlurView(Context context, AttributeSet attrs) {
+    public DynamicBlurView(Context context, AttributeSet attrs) {
         super(context, attrs);
 
         mBlurImpl = getBlurImpl(); // provide your own by override getBlurImpl()
 
-        TypedArray a = context.obtainStyledAttributes(attrs, R.styleable.RealtimeBlurView);
-        mBlurRadius = a.getDimension(R.styleable.RealtimeBlurView_blurRadius,
-                TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 10, context.getResources().getDisplayMetrics()));
-        mDownSampleFactor = a.getFloat(R.styleable.RealtimeBlurView_downSampleFactor, 4);
-        mOverlayColor = a.getColor(R.styleable.RealtimeBlurView_overlayColor, 0xAAFFFFFF);
+        TypedArray a = context.obtainStyledAttributes(attrs, R.styleable.DynamicBlurView);
+        mBorderRadius = a.getDimension(R.styleable.DynamicBlurView_borderRadius, 0);
+        mBlurRadius = a.getDimension(R.styleable.DynamicBlurView_blurRadius, TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 10, context.getResources().getDisplayMetrics()));
+        mDownSampleFactor = a.getFloat(R.styleable.DynamicBlurView_downSampleFactor, 4);
+        mOverlayColor = a.getColor(R.styleable.DynamicBlurView_overlayColor, 0xAAFFFFFF);
         a.recycle();
 
         mPaint = new Paint();
@@ -147,9 +145,7 @@ public class RealtimeBlurView extends View {
 
         boolean dirty = mDirty;
 
-        if (mBlurringCanvas == null || mBlurredBitmap == null
-                || mBlurredBitmap.getWidth() != scaledWidth
-                || mBlurredBitmap.getHeight() != scaledHeight) {
+        if (mBlurringCanvas == null || mBlurredBitmap == null || mBlurredBitmap.getWidth() != scaledWidth || mBlurredBitmap.getHeight() != scaledHeight) {
             dirty = true;
             releaseBitmap();
 
@@ -310,7 +306,7 @@ public class RealtimeBlurView extends View {
             canvas.drawBitmap(blurredBitmap, mRectSrc, mRectDst, null);
         }
         mPaint.setColor(overlayColor);
-        canvas.drawRect(mRectDst, mPaint);
+        canvas.drawRoundRect(mRectDst, mBorderRadius, mBorderRadius, mPaint);
     }
 
     private static class StopException extends RuntimeException {

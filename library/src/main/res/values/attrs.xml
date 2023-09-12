@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <declare-styleable name="RealtimeBlurView">
+    <declare-styleable name="DynamicBlurView">
+        <attr name="borderRadius" format="dimension" />
         <attr name="blurRadius" format="dimension" />
         <attr name="downSampleFactor" format="float" />
         <attr name="overlayColor" format="color" />
