@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <declare-styleable name="DynamicBlurView">
-        <attr name="borderRadius" format="dimension" />
         <attr name="blurRadius" format="dimension" />
         <attr name="downSampleFactor" format="float" />
         <attr name="overlayColor" format="color" />
+        <attr name="oval" format="boolean" />
+        <attr name="borderRadius" format="dimension" />
     </declare-styleable>
 </resources>

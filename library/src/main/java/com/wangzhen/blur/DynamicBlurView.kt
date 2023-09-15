@@ -26,20 +26,22 @@ import com.wangzhen.blur.impl.EmptyBlurImpl
  */
 class DynamicBlurView @JvmOverloads constructor(context: Context, attrs: AttributeSet? = null) :
     View(context, attrs) {
-    private var mDownSampleFactor: Float // default 4
-    private var mOverlayColor: Int // default #aaffffff
-    private var mBlurRadius: Float // default 10dp (0 < r <= 25)
-    private var mBorderRadius: Float// default 0
-    private val mBlurImpl: Blur
-    private var mDirty = false
+    private var downSampleFactor: Float // default 4
+    private var overlayColor: Int // default #aaffffff
+    private var blurRadius: Float // default 10dp (0 < r <= 25)
+    private var oval = false
+    private var borderRadius = 0f
+
+    private val blurImpl: Blur
+    private var dirty = false
     private var mBitmapToBlur: Bitmap? = null
     private var mBlurredBitmap: Bitmap? = null
-    private var mBlurringCanvas: Canvas? = null
-    private var mIsRendering = false
-    private val mPaint: Paint
-    private val mBitmapPaint: Paint
-    private val mRectSrc = Rect()
-    private val mRectDst = RectF()
+    private var blurringCanvas: Canvas? = null
+    private var isRendering = false
+    private val paint: Paint
+    private val bitmapPaint: Paint
+    private val rectSrc = Rect()
+    private val rectDst = RectF()
 
     // mDecorView should be the root view of the activity (even if you are on a different window like a dialog)
     private var mDecorView: View? = null
@@ -57,23 +59,27 @@ class DynamicBlurView @JvmOverloads constructor(context: Context, attrs: Attribu
     }
 
     init {
-        mBlurImpl = getBlurImpl() // provide your own by override getBlurImpl()
+        blurImpl = getBlurImpl() // provide your own by override getBlurImpl()
         val typedArray = context.obtainStyledAttributes(attrs, R.styleable.DynamicBlurView)
-        mBorderRadius = typedArray.getDimension(R.styleable.DynamicBlurView_borderRadius, 0f)
-        mBlurRadius = typedArray.getDimension(
+        blurRadius = typedArray.getDimension(
             R.styleable.DynamicBlurView_blurRadius, TypedValue.applyDimension(
                 TypedValue.COMPLEX_UNIT_DIP, 10f, context.resources.displayMetrics
             )
         )
-        mDownSampleFactor = typedArray.getFloat(R.styleable.DynamicBlurView_downSampleFactor, 4f)
-        mOverlayColor =
+        downSampleFactor = typedArray.getFloat(R.styleable.DynamicBlurView_downSampleFactor, 4f)
+        overlayColor =
             typedArray.getColor(R.styleable.DynamicBlurView_overlayColor, -0x55000001) // 0xAAFFFFFF
+
+        oval = typedArray.getBoolean(R.styleable.DynamicBlurView_oval, false)
+        if (!oval) {
+            borderRadius = typedArray.getDimension(R.styleable.DynamicBlurView_borderRadius, 0f)
+        }
         typedArray.recycle()
 
-        mPaint = Paint().apply {
-            color = mOverlayColor
+        paint = Paint().apply {
+            color = overlayColor
         }
-        mBitmapPaint = Paint().apply {
+        bitmapPaint = Paint().apply {
             isAntiAlias = true
         }
     }
@@ -96,35 +102,42 @@ class DynamicBlurView @JvmOverloads constructor(context: Context, attrs: Attribu
     }
 
     fun setBlurRadius(radius: Float) {
-        if (mBlurRadius != radius) {
-            mBlurRadius = radius
-            mDirty = true
+        if (blurRadius != radius) {
+            blurRadius = radius
+            dirty = true
+            invalidate()
+        }
+    }
+
+    fun setOval(value: Boolean) {
+        if (oval != value) {
+            oval = value
             invalidate()
         }
     }
 
     fun setBorderRadius(radius: Float) {
-        if (mBorderRadius != radius) {
-            mBorderRadius = radius
-            mDirty = true
+        if (borderRadius != radius) {
+            borderRadius = radius
+            dirty = true
             invalidate()
         }
     }
 
     fun setDownSampleFactor(factor: Float) {
         require(factor > 0) { "DownSample factor must be greater than 0." }
-        if (mDownSampleFactor != factor) {
-            mDownSampleFactor = factor
-            mDirty = true // may also change blur radius
+        if (downSampleFactor != factor) {
+            downSampleFactor = factor
+            dirty = true // may also change blur radius
             releaseBitmap()
             invalidate()
         }
     }
 
     fun setOverlayColor(color: Int) {
-        if (mOverlayColor != color) {
-            mOverlayColor = color
-            mPaint.color = mOverlayColor
+        if (overlayColor != color) {
+            overlayColor = color
+            paint.color = overlayColor
             invalidate()
         }
     }
@@ -136,16 +149,16 @@ class DynamicBlurView @JvmOverloads constructor(context: Context, attrs: Attribu
 
     private fun release() {
         releaseBitmap()
-        mBlurImpl.release()
+        blurImpl.release()
     }
 
     private fun prepare(): Boolean {
-        if (mBlurRadius == 0f) {
+        if (blurRadius == 0f) {
             release()
             return false
         }
-        var downSampleFactor = mDownSampleFactor
-        var radius = mBlurRadius / downSampleFactor
+        var downSampleFactor = downSampleFactor
+        var radius = blurRadius / downSampleFactor
         if (radius > MAX_BLUR_RADIUS) {
             downSampleFactor = downSampleFactor * radius / MAX_BLUR_RADIUS
             radius = MAX_BLUR_RADIUS.toFloat()
@@ -154,8 +167,7 @@ class DynamicBlurView @JvmOverloads constructor(context: Context, attrs: Attribu
         val height = height
         val scaledWidth = Math.max(1, (width / downSampleFactor).toInt())
         val scaledHeight = Math.max(1, (height / downSampleFactor).toInt())
-        var dirty = mDirty
-        if (mBlurringCanvas == null || mBlurredBitmap == null || mBlurredBitmap!!.width != scaledWidth || mBlurredBitmap!!.height != scaledHeight) {
+        if (blurringCanvas == null || mBlurredBitmap == null || mBlurredBitmap!!.width != scaledWidth || mBlurredBitmap!!.height != scaledHeight) {
             dirty = true
             releaseBitmap()
             var r = false
@@ -163,7 +175,7 @@ class DynamicBlurView @JvmOverloads constructor(context: Context, attrs: Attribu
                 mBitmapToBlur =
                     Bitmap.createBitmap(scaledWidth, scaledHeight, Bitmap.Config.ARGB_8888)
                 mBitmapToBlur?.let { bitmap ->
-                    mBlurringCanvas = Canvas(bitmap)
+                    blurringCanvas = Canvas(bitmap)
                     mBlurredBitmap =
                         Bitmap.createBitmap(scaledWidth, scaledHeight, Bitmap.Config.ARGB_8888)
                     if (mBlurredBitmap == null) {
@@ -184,7 +196,7 @@ class DynamicBlurView @JvmOverloads constructor(context: Context, attrs: Attribu
             }
         }
         if (dirty) {
-            mDirty = if (mBlurImpl.prepare(context, mBitmapToBlur, radius)) {
+            dirty = if (blurImpl.prepare(context, mBitmapToBlur, radius)) {
                 false
             } else {
                 return false
@@ -194,7 +206,7 @@ class DynamicBlurView @JvmOverloads constructor(context: Context, attrs: Attribu
     }
 
     private fun blur(bitmapToBlur: Bitmap?, blurredBitmap: Bitmap?) {
-        mBlurImpl.blur(bitmapToBlur, blurredBitmap)
+        blurImpl.blur(bitmapToBlur, blurredBitmap)
     }
 
     private val preDrawListener = OnPreDrawListener {
@@ -212,11 +224,11 @@ class DynamicBlurView @JvmOverloads constructor(context: Context, attrs: Attribu
 
                 mBitmapToBlur?.let { bitmapToBlur ->
                     // just erase transparent
-                    bitmapToBlur.eraseColor(mOverlayColor and 0xffffff)
+                    bitmapToBlur.eraseColor(overlayColor and 0xffffff)
 
-                    mBlurringCanvas?.let { canvas ->
+                    blurringCanvas?.let { canvas ->
                         val rc = canvas.save()
-                        mIsRendering = true
+                        isRendering = true
                         RENDERING_COUNT++
                         try {
                             canvas.scale(
@@ -224,10 +236,10 @@ class DynamicBlurView @JvmOverloads constructor(context: Context, attrs: Attribu
                             )
                             canvas.translate(-x.toFloat(), -y.toFloat())
                             decor.background?.draw(canvas)
-                            decor.draw(mBlurringCanvas)
+                            decor.draw(blurringCanvas)
                         } catch (ignored: StopException) {
                         } finally {
-                            mIsRendering = false
+                            isRendering = false
                             RENDERING_COUNT--
                             canvas.restoreToCount(rc)
                         }
@@ -278,7 +290,7 @@ class DynamicBlurView @JvmOverloads constructor(context: Context, attrs: Attribu
     }
 
     override fun draw(canvas: Canvas) {
-        if (mIsRendering) {
+        if (isRendering) {
             // Quit here, don't draw views above me
             throw STOP_EXCEPTION
         } else if (RENDERING_COUNT > 0) {
@@ -301,23 +313,31 @@ class DynamicBlurView @JvmOverloads constructor(context: Context, attrs: Attribu
      */
     private fun drawBlurredBitmap(canvas: Canvas, blurredBitmap: Bitmap?) {
         if (blurredBitmap != null) {
-            mRectSrc.right = blurredBitmap.width
-            mRectSrc.bottom = blurredBitmap.height
-            mRectDst.right = width.toFloat()
-            mRectDst.bottom = height.toFloat()
+            rectSrc.right = blurredBitmap.width
+            rectSrc.bottom = blurredBitmap.height
+            rectDst.right = width.toFloat()
+            rectDst.bottom = height.toFloat()
 
-            mBitmapPaint.shader =
+            bitmapPaint.shader =
                 BitmapShader(blurredBitmap, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP).apply {
                     setLocalMatrix(Matrix().apply {
                         setScale(
-                            mRectDst.width() / blurredBitmap.width,
-                            mRectDst.height() / blurredBitmap.height
+                            rectDst.width() / blurredBitmap.width,
+                            rectDst.height() / blurredBitmap.height
                         )
                     })
                 }
-            canvas.drawRoundRect(mRectDst, mBorderRadius, mBorderRadius, mBitmapPaint)
+            if (oval) {
+                canvas.drawOval(rectDst, bitmapPaint)
+            } else {
+                canvas.drawRoundRect(rectDst, borderRadius, borderRadius, bitmapPaint)
+            }
         }
-        canvas.drawRoundRect(mRectDst, mBorderRadius, mBorderRadius, mPaint)
+        if (oval) {
+            canvas.drawOval(rectDst, bitmapPaint)
+        } else {
+            canvas.drawRoundRect(rectDst, borderRadius, borderRadius, paint)
+        }
     }
 
     private class StopException : RuntimeException()
